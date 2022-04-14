@@ -19,19 +19,47 @@ public class PlayerController : IHittable
         }
     }
 
+    public float Energy
+    {
+        get
+        {
+            if(m_energy == -1)
+            {
+                m_energy = MaxEnergy;
+            }
+
+            return m_energy;
+        }
+    }
+
+    public float Rage
+    {
+        get
+        {
+            return m_rage;
+        }
+    }
+
 
     public List<TempEffect> CurrentEffects = new List<TempEffect>();
 
     [Header("Variables")]
     public float MovementSpeed = 5;
     [Space(5)]
+    public float MaxEnergy = 100;
+    public float MaxRage = 100;
+    public float EnergyRechargeCD = 3;
+    public float EnergyRechargeRate = 20;
+    [Space(5)]
     public float MeleeBaseDamage = 8;
     public float MeleeBaseAPS = 2;
     public float MeleeSpawnRange = 3;
+    public float MeleeRageOnHit = 10;
     [Space(5)]
     public float ProjBaseDamage = 6;
     public float ProjBaseAPS = 3;
     public float ProjSpawnRange = 1.5f;
+    public float ProjEnergyCost = 10;
 
     [Header("References")]
     public Collider2D PlayerCollider;
@@ -47,11 +75,17 @@ public class PlayerController : IHittable
     public Stat ProjDamage = new Stat();
     public Stat ProjAPS = new Stat();
 
+    [HideInInspector]
+    public bool isMelee = false;
+
+
     private bool playerInitted = false;
 
-    private bool isMelee = true;
-
     private bool attackOnCD = false;
+    private bool spentEnergy = false;
+
+    private float m_rage = 0;
+    private float m_energy = -1; 
 
     private static PlayerController m_instance = null;
 
@@ -62,6 +96,41 @@ public class PlayerController : IHittable
             CurrentEffects.Add(effect);
             effect.Init(this);
         }
+    }
+
+    public void GainEnergy(float Value)
+    {
+        if(Value <= 0) return;
+
+        m_energy = Mathf.Clamp(Energy + Value,0,MaxEnergy);
+
+        EnergyRageCounter.Instance?.UpdateValues();
+    }
+
+    public void SpendEnergy(float Value)
+    {
+        if(Value <= 0) return;
+
+        m_energy = Mathf.Clamp(Energy - Value,0,MaxEnergy);
+        spentEnergy = true;
+
+        EnergyRageCounter.Instance?.UpdateValues();
+    }
+
+    public void GainRage(float Value)
+    {
+        if(Value <= 0) return;
+         
+        m_rage = Mathf.Clamp(Rage + Value,0,MaxRage);
+
+        EnergyRageCounter.Instance?.UpdateValues();
+    }
+
+    public void DamageTakenRageLoss()
+    {
+        m_rage = 0;
+
+        EnergyRageCounter.Instance?.UpdateValues();
     }
 
     private void Start()
@@ -101,8 +170,13 @@ public class PlayerController : IHittable
         ProjDamage.BaseValue = ProjBaseDamage;
         ProjAPS.BaseValue = ProjBaseAPS;
 
+
+        OnDamageTaken.AddListener(DamageTakenRageLoss);
         DamageColor = Color.red;
         HPBar = false;
+
+        StartCoroutine(EnergyRecharge());
+        EnergyRageCounter.Instance?.UpdateValues();
     }
 
     private void OnAttack()
@@ -118,6 +192,8 @@ public class PlayerController : IHittable
             att = GameObject.Instantiate(BaseMelee);
             var melee = att.GetComponent<MeleeAttack>();
 
+            melee.OnHitCallback = (col) => GainRage(MeleeRageOnHit);
+
             melee.Damage = MeleeDamage.Value;
             melee.BlackList.Add(PlayerCollider.gameObject);
             range = MeleeSpawnRange;
@@ -126,6 +202,14 @@ public class PlayerController : IHittable
         }
         else
         {
+            if(Energy < ProjEnergyCost)
+            {
+                //Whiff SFX and VFX?
+                return;
+            }
+
+            SpendEnergy(ProjEnergyCost);
+
             att = GameObject.Instantiate(BaseProj);
             var proj = att.GetComponent<ProjectileAttack>();
 
@@ -143,6 +227,8 @@ public class PlayerController : IHittable
     private void OnModeSwap()
     {
         isMelee = !isMelee;
+
+        EnergyRageCounter.Instance?.ModeSwap();
     }
 
     private IEnumerator AttackCD(float CD)
@@ -152,5 +238,40 @@ public class PlayerController : IHittable
         yield return new WaitForSeconds(CD);
 
         attackOnCD = false;
+    }
+
+    private IEnumerator EnergyRecharge()
+    {
+        while(true)
+        {
+            while(!spentEnergy)
+            {
+                if(Energy < MaxEnergy)
+                {
+                    m_energy = Mathf.Min(Energy + EnergyRechargeRate * Time.deltaTime, MaxEnergy);
+
+                    EnergyRageCounter.Instance?.UpdateValues();
+                }
+
+                yield return null;
+            }
+            
+            spentEnergy = false;
+            float accumulatedTime = 0;
+
+            while(accumulatedTime < EnergyRechargeCD)
+            {
+                if(spentEnergy)
+                {
+                    spentEnergy = false;
+                    accumulatedTime = 0;
+                }
+
+                accumulatedTime += Time.deltaTime;
+
+                yield return null;
+            }
+            
+        }
     }
 }

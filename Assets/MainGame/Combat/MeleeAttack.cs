@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -5,6 +6,8 @@ using UnityEngine;
 public class MeleeAttack : AreaEffect
 {
     public float Damage = 1;
+
+    public Action<Collider2D> OnHitCallback = null;
 
     private List<IHittable> hits = new List<IHittable>();
 
@@ -25,6 +28,7 @@ public class MeleeAttack : AreaEffect
             {
                 hits.Add(hittable);
                 hittable.DealDamage(Damage);
+                if(OnHitCallback != null) OnHitCallback(col);
             }
         }
     }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using DG.Tweening;
 
 public class IHittable : MonoBehaviour
@@ -66,6 +67,9 @@ public class IHittable : MonoBehaviour
     public Color DamageColor = Color.white;
     public bool HPBar = true;
 
+    [HideInInspector]
+    public UnityEvent OnDamageTaken = new UnityEvent();
+
     private float m_hp = 1;
     private float m_maxhp = 1;
 
@@ -78,6 +82,8 @@ public class IHittable : MonoBehaviour
     {
         UIUtils.Instance.DamageText(Value,transform,DamageColor);
         HP -= Value;
+        
+        OnDamageTaken?.Invoke();
     }
 
     protected virtual void OnDeath()

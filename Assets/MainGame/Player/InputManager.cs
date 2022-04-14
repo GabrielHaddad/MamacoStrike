@@ -5,7 +5,7 @@ using UnityEngine.Events;
 
 public class InputManager : MonoBehaviour
 {
-    public const float MouseScrollCDDuration = 0.8f;
+    public const float MouseScrollCDDuration = 0.4f;
 
 
     public static InputManager Instance {
